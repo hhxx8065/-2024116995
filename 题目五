@@ -1,0 +1,15 @@
+梯度⼀
+找出导致编译失败的问题
+1.threshold == 127; 赋值错误，应该为“=”；
+2.ImageCache 类中定义了静态成员变量 map<string, Mat> cache;，但没有在类外对其进行定义
+梯度⼆
+找出即使编译通过但仍会导致运⾏发⽣错误的问题
+1.for(int i = 0; i <= channels.size(); i++) {  
+    enhanceChannel(channels[i]);
+}循环越界，应该去掉等于号
+
+梯度三
+找出所有的错误包括所有不规范和带有内存泄漏隐患的问题
+1.多次使用 imread("input.jpg") 来读取同一图像
+2.代码中同时使用了 using namespace cv; 和 using namespace std;可能导致冲突
+3.应该将c++头文件放在前面
