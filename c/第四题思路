@@ -1,0 +1,144 @@
+
+
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+import cv2
+import numpy as np
+int main() {
+    image_width: 1280
+image_height: 1024
+camera_name: narrow_stereo
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [1562.47413,    0.     ,  629.46568,
+            0.     , 1563.68263,  487.30481,
+            0.     ,    0.     ,    1.     ]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.053228, 0.022734, -0.001246, -0.001836, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1., 0., 0.,
+         0., 1., 0.,
+         0., 0., 1.]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1547.90186,    0.     ,  627.30344,    0.     ,
+            0.     , 1553.26318,  485.92866,    0.     ,
+            0.     ,    0.     ,    1.     ,    0.     ]
+    // 读取图片
+    cv::VideoCapture cap("d.mp4");
+    
+
+    // 显示原图
+    cv::VideoCapture cap;
+    cap.open( "d.mp4" );
+    while cap.isOpened():
+     img = cap.read()
+    if not ret:
+        break
+
+    // 转换为灰度图
+    cv::Mat img_gray;
+    cv::cvtColor(img, img_gray, cv::COLOR_BGR2GRAY);
+    cv::imshow("Grayscale", img_gray);
+    cv::waitKey(0);
+
+    // 二值化
+    cv::Mat img_th;
+    cv::threshold(img_gray, img_th, 130, 255, cv::THRESH_BINARY);
+    cv::imshow("Threshold", img_th);
+    cv::waitKey(0);
+
+    // 形态学操作
+    cv::Mat img_erode, img_dilate;
+    cv::erode(img_th, img_erode, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15)));
+    cv::imshow("Erode", img_erode);
+    cv::waitKey(0);
+
+    cv::dilate(img_th, img_dilate, cv::getStructuringElement(cv::MORPH_RECT, cv::Size(15, 15)));
+    cv::imshow("Dilate", img_dilate);
+    cv::waitKey(0);
+
+    // 找轮廓
+    std::vector<std::vector<cv::Point>> contours;
+    std::vector<cv::Vec4i> hierarchy;
+    cv::findContours(img_th, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    // 画轮廓
+    cv::Mat img_contours = img.clone();
+    cv::drawContours(img_contours, contours, -1, cv::Scalar(0, 0, 255), 2);
+    cv::imshow("Contours", img_contours);
+    cv::waitKey(0);
+    //过滤小轮廓
+    std::vector<std::vector<cv::Point>> contours_filtered;
+    for (const auto& contour : contours) {
+        if (cv::contourArea(contour) > 50) {
+            contours_filtered.push_back(contour);
+        }
+    }
+
+    //绘制最小外接矩形
+    cv::Mat img_rota = img.clone();
+    for (const auto& contour : contours_filtered) {
+        cv::RotatedRect rota_rect = cv::minAreaRect(contour);  // 获取该轮廓的最小外接矩形
+        cv::Point2f vertices[4];
+        rota_rect.points(vertices);  // 将最小外接矩形转化为点
+        for (int i = 0; i < 4; i++) {
+            cv::line(img_rota, vertices[i], vertices[(i+1)%4], cv::Scalar(0, 255, 0), 2);
+        }
+    }
+    cv::imshow("旋转矩形", img_rota);
+    cv::waitKey(0);
+
+    // 步骤8：匹配装甲板   
+    // 有没有发现，一个装甲板上有两个灯条，而且这两个灯条的某些属性是一样的！找到他们，匹配上
+    cv::Mat img_point = img.clone();
+    for (size_t i = 0; i < contours_filtered.size(); i++) {
+        for (size_t j = i + 1; j < contours_filtered.size(); j++) {  // 一个二重循环
+            cv::RotatedRect rect_i = cv::minAreaRect(contours_filtered[i]);
+            cv::RotatedRect rect_j = cv::minAreaRect(contours_filtered[j]);
+            
+            // 其中，center.x为x坐标，center.y为y坐标，size.width为宽，size.height为高
+            float angle_diff = std::abs(rect_i.angle - rect_j.angle);
+            float center_y_diff = std::abs(rect_i.center.y - rect_j.center.y);
+
+            if (angle_diff < 5 && center_y_diff < 50) {
+                // 此时，我们已经找到了相匹配的两个灯条
+                cv::Point2f vertices_i[4], vertices_j[4];
+                rect_i.points(vertices_i);
+                rect_j.points(vertices_j);
+
+                std::vector<cv::Point2f> all_points;
+                // 简单一点可以用range-based for循环
+                for (int k = 0; k < 4; k++) {
+                    all_points.push_back(vertices_i[k]);
+                    all_points.push_back(vertices_j[k]);
+                }
+
+                // 找到对应的灯条后用他们的点再套一层外接矩形就得到的整个装甲板的外接矩形了
+                cv::RotatedRect rect_fin = cv::minAreaRect(all_points);
+                cv::Point2f vertices_fin[4];
+                rect_fin.points(vertices_fin);
+
+                for (int k = 0; k < 4; k++) {
+                    cv::line(img_point, vertices_fin[k], vertices_fin[(k+1)%4], cv::Scalar(255, 255, 255), 3);
+                }
+            }
+        }
+    }
+     cv2.imshow("Armor Plate Detection", img);
+    cv::waitKey(0);
+
+    // 完成
+    // 我们已经过滤掉不少错误目标了，对于正确的目标，我们获得了装甲板的轮廓信息
+
+    cv::destroyAllWindows();
+    return 0;
+}
