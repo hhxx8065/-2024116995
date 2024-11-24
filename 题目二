@@ -1,0 +1,123 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <iomanip>
+#include <limits>
+
+using namespace std;
+
+// 定义四个方向的偏移量，用于表示上下左右移动
+const int dx[] = { -1, 0, 1, 0 };
+const int dy[] = { 0, 1, 0, -1 };
+
+// 计算膨胀后坐标点的代价
+double calculateInflatedCost(const vector<vector<int> >& grid, double t, int x, int y) {
+    double inflatedCost = grid[x][y];
+
+    // 遍历上下左右四个方向的坐标点，增加膨胀代价
+    for (int i = 0; i < 4; ++i) {
+        int newX = x + dx[i];
+        int newY = y + dy[i];
+
+        if (newX >= 0 && newX < grid.size() && newY >= 0 && newY < grid[0].size()) {
+            inflatedCost += t * grid[newX][newY];
+        }
+    }
+
+    return inflatedCost;
+}
+
+// 寻找膨胀地图中两点的最短路径
+double findShortestPathInInflatedMap(const vector<vector<int> >& grid, double t, int x1, int y1, int x2, int y2) {
+    int n = grid.size();
+    int m = grid[0].size();
+
+    // 二维数组用于记录每个节点到起始节点的最短距离，初始化为最大值
+    vector<vector<double> > dist(n, vector<double>(m, numeric_limits<double>::max()));
+
+    // 二维数组用于标记节点是否已被访问过，初始化为未访问
+    vector<vector<bool> > visited(n, vector<bool>(m, false));
+
+    // 起始节点到自身的距离为0
+    dist[x1][y1] = 0;
+
+    // 不断循环直到所有节点都被访问过或者找到目标节点
+    while (true) {
+        // 初始化当前找到的最短距离节点为无效节点
+        int curX = -1;
+        int curY = -1;
+        double minDist = numeric_limits<double>::max();
+
+        // 遍历整个地图，找到未访问过的且距离起始节点最短的节点
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < m; ++j) {
+                if (!visited[i][j] && dist[i][j] < minDist) {
+                    minDist = dist[i][j];
+                    curX = i;
+                    curY = j;
+                }
+            }
+        }
+
+        // 如果没有找到未访问过的节点，说明所有节点都已访问过，退出循环
+        if (curX == -1) {
+            break;
+        }
+
+        // 标记当前节点为已访问过
+        visited[curX][curY] = true;
+
+        // 如果当前节点是目标节点，返回当前距离加上目标节点的膨胀代价
+        if (curX == x2 && y2 == curY) {
+            return dist[curX][curY] ;
+        }
+
+        // 遍历当前节点的四个方向
+        for (int i = 0; i < 4; ++i) {
+            int newX = curX + dx[i];
+            int newY = curY + dy[i];
+
+            // 判断新坐标是否在地图范围内且未被访问过
+            if (newX >= 0 && newX < n && newY >= 0 && newY < m &&!visited[newX][newY]) {
+                double newCost = dist[curX][curY] + calculateInflatedCost(grid, t, newX, newY);
+
+                // 如果通过当前节点到达新节点的距离更短，则更新新节点的距离
+                if (newCost < dist[newX][newY]) {
+                    dist[newX][newY] = newCost;
+                }
+            }
+        }
+    }
+
+    // 如果没有找到路径，返回一个特殊值（这里假设不会出现大于最大双精度浮点数的路径代价）
+    return numeric_limits<double>::max();
+}
+
+int main() {
+    int n, m;
+    cin >> n >> m;
+
+    vector<vector<int> > grid(n, vector<int>(m));
+    for (int i = 0; i < n; ++i) {
+        for (int j = 0; j < m; ++j) {
+            cin >> grid[i][j];
+        }
+    }
+
+    double t;
+    cin >> t;
+
+    int x1, y1, x2, y2;
+    cin >> x1 >> y1 >> x2 >> y2;
+
+    double result = findShortestPathInInflatedMap(grid, t, x1, y1, x2, y2);
+
+        cout << fixed << setprecision(1) << result << endl;
+    
+
+    return 0;
+}
+
+
+
+思路，先把所有格子都标记其代价，设置标记数组标记走过的路线，再用A*搜索，依此加入队列，直到最后到达目标区域
